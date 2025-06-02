@@ -25,9 +25,6 @@
   :type 'boolean
   :group 'emacs-mcp)
 
-(defvar emacs-mcp--process nil
-  "The MCP server process.")
-
 (defvar emacs-mcp--buffer "*emacs-mcp*"
   "Buffer for MCP server communication.")
 
@@ -48,7 +45,7 @@ FORMAT-STRING and ARGS are passed to `message'."
   "Send JSON object OBJ to the MCP client."
   (let ((json-str (concat (json-encode obj) "\n")))
     (emacs-mcp--log "Sending: %s" json-str)
-    (process-send-string emacs-mcp--process json-str)))
+    (princ json-str)))
 
 (defun emacs-mcp--handle-initialize (id params)
   "Handle initialize request with ID and PARAMS."
@@ -58,7 +55,7 @@ FORMAT-STRING and ARGS are passed to `message'."
      (id . ,id)
      (result . ((protocolVersion . "2025-03-26")
                 (capabilities . ((resources . ((subscribe . t)
-                                              (listChanged . t))))
+                                              (listChanged . t)))))
                 (serverInfo . ((name . "emacs-mcp")
                               (version . "0.1.0"))))))))
 
@@ -78,6 +75,7 @@ FORMAT-STRING and ARGS are passed to `message'."
   "Handle resources/templates/list request with ID and _PARAMS."
   (emacs-mcp--log "Handling resources/templates/list request")
   (emacs-mcp--send-json
+
    `((jsonrpc . "2.0")
      (id . ,id)
      (result . ((resourceTemplates . [((uriTemplate . "elisp:///docstring/{symbol}")
@@ -112,23 +110,27 @@ FORMAT-STRING and ARGS are passed to `message'."
   "Handle resources/read request with ID and PARAMS."
   (emacs-mcp--log "Handling resources/read request: %s" params)
   (let* ((uri (alist-get 'uri params))
-         (symbol-name nil)
-         (docstring nil))
+         (content nil))
 
-    ;; Extract symbol name from URI
+    ;; Handle docstring requests
     (when (string-match "elisp:///docstring/\\(.+\\)" uri)
-      (setq symbol-name (match-string 1 uri)))
+      (let ((symbol-name (match-string 1 uri)))
+        (setq content (emacs-mcp--get-docstring symbol-name))))
 
-    (if symbol-name
-        (setq docstring (emacs-mcp--get-docstring symbol-name))
-      (setq docstring "Please specify a symbol name in the URI: elisp:///docstring/{symbol}"))
+    ;; Handle root resources
+    (when (string= uri "elisp:///docstring")
+      (setq content "Use elisp:///docstring/{symbol} to get docstring for a specific symbol"))
+
+    ;; If no content was set, provide a helpful message
+    (unless content
+      (setq content "Unknown resource URI. Available resources:\n- elisp:///docstring/{symbol}"))
 
     (emacs-mcp--send-json
      `((jsonrpc . "2.0")
        (id . ,id)
        (result . ((contents . [((uri . ,uri)
                                (mimeType . "text/plain")
-                               (text . ,docstring))]))))))
+                               (text . ,content))]))))))
   nil)
 
 (defun emacs-mcp--handle-message (message)
@@ -175,56 +177,34 @@ FORMAT-STRING and ARGS are passed to `message'."
            (error . ((code . -32601)
                      (message . ,(format "Method not found: %s" method)))))))))))
 
-(defun emacs-mcp--process-filter (proc string)
-  "Process filter for MCP server PROC with input STRING."
-  (with-current-buffer (process-buffer proc)
-    (goto-char (point-max))
-    (insert string)
-
-    ;; Process complete lines
-    (goto-char (point-min))
-    (while (re-search-forward "\\(.*\\)\n" nil t)
-      (let ((line (match-string 1)))
-        (delete-region (match-beginning 0) (match-end 0))
-        (emacs-mcp--handle-message line)))))
-
-(defun emacs-mcp--process-sentinel (proc event)
-  "Process sentinel for MCP server PROC with EVENT."
-  (emacs-mcp--log "Process %s received event: %s" proc event)
-  (when (string-match-p "\\(finished\\|exited\\|killed\\)" event)
-    (setq emacs-mcp--process nil)))
+(defun emacs-mcp--process-input ()
+  "Process a line of input from stdin."
+  (condition-case err
+      (let ((line (read-from-minibuffer "")))
+        (when (not (string-empty-p line))
+          (emacs-mcp--handle-message line)
+          (emacs-mcp--process-input)))
+    (error
+     (emacs-mcp--log "Error processing input: %s" (error-message-string err)))))
 
 ;;;###autoload
 (defun emacs-mcp-start-server ()
-  "Start the MCP server."
+  "Start the MCP server using stdin/stdout directly."
   (interactive)
-  (when emacs-mcp--process
-    (emacs-mcp-stop-server))
-
-  (let ((buffer (get-buffer-create emacs-mcp--buffer)))
-    (with-current-buffer buffer
-      (erase-buffer))
-
-    (setq emacs-mcp--process
-          (make-process
-           :name "emacs-mcp"
-           :buffer buffer
-           :command '("cat")
-           :filter #'emacs-mcp--process-filter
-           :sentinel #'emacs-mcp--process-sentinel
-           :noquery t))
-
-    (emacs-mcp--log "MCP server started with PID %s" (process-id emacs-mcp--process))
-    (message "MCP server started")))
+  (message "MCP server started. Use Ctrl-C to stop.")
+  (emacs-mcp--process-input))
 
 ;;;###autoload
-(defun emacs-mcp-stop-server ()
-  "Stop the MCP server."
-  (interactive)
-  (when emacs-mcp--process
-    (delete-process emacs-mcp--process)
-    (setq emacs-mcp--process nil)
-    (message "MCP server stopped")))
+(defun emacs-mcp-start-server-batch ()
+  "Start the MCP server in batch mode.
+This function is meant to be called with emacs --batch."
+  (setq debug-on-error t)
+  (let ((standard-input (get-buffer-create "*stdin*")))
+    (with-current-buffer standard-input
+      (while t
+        (let ((line (read-string "")))
+          (when (not (string-empty-p line))
+            (emacs-mcp--handle-message line)))))))
 
 (provide 'emacs-mcp)
 ;;; emacs-mcp.el ends here
