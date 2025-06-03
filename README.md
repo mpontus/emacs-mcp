@@ -23,13 +23,7 @@ Once loaded, the MCP server will start automatically and listen for requests.
 To manually start the server:
 
 ```elisp
-(emacs-mcp-start-server)
-```
-
-To stop the server:
-
-```elisp
-(emacs-mcp-stop-server)
+(emacs-mcp-run-stdio)
 ```
 
 ## Configuration
