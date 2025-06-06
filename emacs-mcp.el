@@ -475,5 +475,133 @@ This helps discover what documentation is available for reference."
         (kill-buffer)
         result))))
 
+;; Configuration and environment tools
+(define-mcp-tool get-emacs-version ()
+  "Get detailed information about the current Emacs version.
+Provides version number, build details, and system configuration information.
+This helps understand the capabilities and limitations of the current Emacs instance."
+  (concat "Emacs Version:\n\n" (emacs-version)))
+
+(define-mcp-tool list-loaded-features ()
+  "List all features (libraries) that have been loaded in Emacs.
+Provides a comprehensive list of all Emacs Lisp libraries currently loaded.
+This helps understand what functionality is available in the current session."
+  (let ((result "Loaded Features:\n\n"))
+    (dolist (feature features)
+      (setq result (concat result (format "- %s\n" feature))))
+    result))
+
+;; Package management tools
+(define-mcp-tool list-installed-packages ()
+  "List all installed packages with their status and version.
+Provides a comprehensive overview of the user's package ecosystem."
+  (require 'package)
+  (package-initialize)
+  (let ((result "Installed Packages:\n\n"))
+    (dolist (pkg package-alist)
+      (let* ((name (car pkg))
+             (desc (cadr pkg))
+             (version (package-desc-version desc))
+             (status (if (package-installed-p name) "Installed" "Not Installed")))
+        (setq result (concat result (format "- %s (%s): %s\n" 
+                                          name version status)))))
+    result))
+
+;; Buffer and file management tools
+(define-mcp-tool list-available-modes ()
+  "List all available major modes in this Emacs instance.
+Provides a comprehensive list of all major modes that can be used.
+This helps understand what file types and editing modes are supported."
+  (let ((result "Available Major Modes:\n\n")
+        (modes '()))
+    (mapatoms (lambda (sym)
+                (when (and (functionp sym)
+                           (string-match "-mode$" (symbol-name sym))
+                           (not (string-match "-minor-mode$" (symbol-name sym))))
+                  (push (symbol-name sym) modes))))
+    (setq modes (sort modes 'string<))
+    (dolist (mode modes)
+      (setq result (concat result (format "- %s\n" mode))))
+    result))
+
+;; Customization and settings tools
+(define-mcp-tool list-custom-variables ()
+  "List all customized variables in the current Emacs session.
+Shows variables that have been customized away from their default values.
+This helps understand how the user has personalized their Emacs."
+  (require 'cus-edit)
+  (let ((result "Customized Variables:\n\n"))
+    (dolist (theme custom-enabled-themes)
+      (setq result (concat result (format "Theme: %s\n" theme))))
+    (setq result (concat result "\nVariables:\n"))
+    (mapatoms
+     (lambda (symbol)
+       (when (and (boundp symbol)
+                  (get symbol 'saved-value))
+         (setq result (concat result (format "- %s: %S\n" 
+                                           symbol (symbol-value symbol)))))))
+    result))
+
+;; Hook and advice inspection tools
+(define-mcp-tool describe-hooks (hook-pattern)
+  "Describe hooks matching HOOK-PATTERN.
+Lists all hooks whose names match the pattern and shows their values.
+This helps understand what customizations are triggered at various points."
+  (let ((result (format "Hooks matching \"%s\":\n\n" hook-pattern))
+        (hooks '()))
+    (mapatoms
+     (lambda (symbol)
+       (when (and (boundp symbol)
+                  (string-match "-hook$" (symbol-name symbol))
+                  (string-match hook-pattern (symbol-name symbol)))
+         (push symbol hooks))))
+    (setq hooks (sort hooks (lambda (a b) (string< (symbol-name a) (symbol-name b)))))
+    (dolist (hook hooks)
+      (setq result (concat result (format "- %s:\n" hook)))
+      (let ((value (symbol-value hook)))
+        (if (not value)
+            (setq result (concat result "  (empty)\n"))
+          (dolist (func value)
+            (setq result (concat result (format "  - %s\n" func)))))))
+    result))
+
+;; Font and display tools
+(define-mcp-tool list-available-fonts ()
+  "List all available fonts in the current Emacs session.
+Shows what fonts can be used for display customization.
+This helps understand display capabilities and options."
+  (let ((result "Available Fonts:\n\n")
+        (fonts (font-family-list)))
+    (setq fonts (sort fonts 'string<))
+    (dolist (font fonts)
+      (setq result (concat result (format "- %s\n" font))))
+    result))
+
+;; Keybinding analysis tools
+(define-mcp-tool find-key-conflicts (prefix)
+  "Find conflicting key bindings starting with PREFIX.
+Identifies key sequences that might shadow or conflict with each other.
+PREFIX should be a key prefix in string form (e.g. \"C-c\").
+This helps diagnose keybinding issues and conflicts."
+  (require 'help-fns)
+  (let ((result (format "Key bindings starting with %s:\n\n" prefix))
+        (key (kbd prefix))
+        (map (current-global-map))
+        bindings)
+    (map-keymap
+     (lambda (k v)
+       (when v
+         (let ((key-desc (key-description (vector k))))
+           (push (cons key-desc v) bindings))))
+     (lookup-key map key))
+    (setq bindings (sort bindings (lambda (a b) (string< (car a) (car b)))))
+    (dolist (binding bindings)
+      (setq result (concat result (format "- %s%s: %s\n" 
+                                        prefix
+                                        (if (string= (car binding) "") "" " ")
+                                        (car binding)
+                                        (cdr binding)))))
+    result))
+
 (provide 'emacs-mcp)
 ;;; emacs-mcp.el ends here
