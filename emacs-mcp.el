@@ -388,5 +388,92 @@ This is the most general search tool and useful for broad exploration of Emacs f
         (kill-buffer)
         result))))
 
+;; Info documentation tools
+(define-mcp-tool info-node (node-name)
+  "Display the contents of an Info node.
+Provides the full text content of a specific Info documentation node.
+NODE-NAME should be the name of the node as a string (e.g. \"(emacs)Basic\").
+Returns the text content of the specified Info node."
+  (require 'info)
+  (save-window-excursion
+    (info node-name)
+    (with-current-buffer "*info*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool info-search (topic)
+  "Search for TOPIC in the Info documentation.
+Performs a search across Info documentation for the specified topic.
+TOPIC should be a string to search for.
+Returns a list of matching nodes and context around the matches."
+  (require 'info)
+  (save-window-excursion
+    (info)
+    (Info-search topic)
+    (let ((result (format "Search results for '%s':\n\n" topic))
+          (node-name (format "%s" Info-current-node))
+          (file-name (format "%s" Info-current-file)))
+      (setq result (concat result 
+                           (format "Found in node: %s in file: %s\n\n" 
+                                   node-name file-name)))
+      ;; Get context around the match
+      (let ((start (max (point-min) (- (point) 200)))
+            (end (min (point-max) (+ (point) 500))))
+        (setq result (concat result 
+                             (buffer-substring start end))))
+      (kill-buffer)
+      result)))
+
+(define-mcp-tool info-index (index-item)
+  "Look up INDEX-ITEM in the indices of the Info documentation.
+Finds entries in Info documentation indices that match the specified item.
+INDEX-ITEM should be a string to look up in the indices.
+Returns information about matching index entries and their locations."
+  (require 'info)
+  (save-window-excursion
+    (info)
+    (Info-index index-item)
+    (with-current-buffer "*info*"
+      (let ((result (format "Index results for '%s':\n\n" index-item))
+            (node-name (format "%s" Info-current-node))
+            (file-name (format "%s" Info-current-file)))
+        (setq result (concat result 
+                             (format "Found in node: %s in file: %s\n\n" 
+                                     node-name file-name)))
+        ;; Get the content of the node
+        (setq result (concat result (buffer-substring (point-min) (point-max))))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool info-toc (manual)
+  "Display the table of contents for a specific Info MANUAL.
+Provides the structure and organization of an Info manual.
+MANUAL should be the name of the manual as a string (e.g. \"emacs\").
+Returns the table of contents of the specified manual."
+  (require 'info)
+  (save-window-excursion
+    (info (concat "(" manual ")"))
+    (Info-directory)
+    (with-current-buffer "*info*"
+      (let ((result (format "Table of Contents for '%s':\n\n" manual)))
+        (setq result (concat result (buffer-substring (point-min) (point-max))))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool info-list-manuals ()
+  "List all available Info manuals.
+Provides a comprehensive list of all Info documentation manuals available in the system.
+This helps discover what documentation is available for reference."
+  (require 'info)
+  (save-window-excursion
+    (info)
+    (Info-directory)
+    (with-current-buffer "*info*"
+      (let ((result "Available Info Manuals:\n\n"))
+        (setq result (concat result (buffer-substring (point-min) (point-max))))
+        (kill-buffer)
+        result))))
+
 (provide 'emacs-mcp)
 ;;; emacs-mcp.el ends here
