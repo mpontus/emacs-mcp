@@ -156,6 +156,7 @@ This function is meant to be used in batch mode."
         (error "Empty input, exiting"))
       (emacs-mcp--process-input input))))
 
+;;;###autoload
 (defmacro define-mcp-tool (name args description &rest body)
   "Define an MCP tool with NAME, ARGS, DESCRIPTION and BODY.
 NAME is a symbol that will be used directly as the tool name.
@@ -172,8 +173,10 @@ BODY is the implementation of the tool."
                     '((name . ,(symbol-name name))
                       (description . ,description)
                       (inputSchema . ((type . "object")
-                                      (properties . ,properties)
-                                      (required . ,(vconcat required)))))))))
+                                      ,@(when properties
+                                          `((properties . ,properties)))
+                                      ,@(when required
+                                          `((required . ,(vconcat required)))))))))))
 
 ;; Define tools
 (define-mcp-tool get-docstring (function-name)
