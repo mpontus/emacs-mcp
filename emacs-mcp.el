@@ -87,11 +87,23 @@
          (arguments (alist-get 'arguments params)))
     (dolist (tool emacs-mcp--tools)
       (when (string= (alist-get 'name tool) tool-name)
-        (funcall (intern (concat "emacs-mcp--" tool-name "-tool"))
-                 (mapcar (lambda (arg) (alist-get arg arguments))
-                         (mapcar 'car
-                                 (alist-get 'properties
-                                            (alist-get 'inputSchema tool)))))))))
+        (let ((result (apply (intern (concat "emacs-mcp--" tool-name "-tool"))
+                             (mapcar (lambda (arg) (alist-get arg arguments))
+                                     (mapcar 'car
+                                             (alist-get 'properties
+                                                        (alist-get 'inputSchema tool)))))))
+          (condition-case err
+              (emacs-mcp--send-response
+               id
+               `((content . [((type . "text")
+                              (text . ,result))])
+                 (isError . :json-false)))
+            (error
+             (emacs-mcp--send-response
+              id
+              `((content . [((type . "text")
+                             (text . ,(error-message-string err)))])
+                (isError . t))))))))))
 
 (defun emacs-mcp--handle-request (request)
   "Handle REQUEST."
@@ -133,89 +145,6 @@
     (error
      (message "Error processing MCP input: %s" (error-message-string err)))))
 
-(defmacro define-mcp-tool (name args description &rest body)
-  "Define an MCP tool with NAME, ARGS, DESCRIPTION and BODY.
-NAME is a symbol that will be used directly as the tool name.
-ARGS is a list of parameter names that will be extracted from the request.
-DESCRIPTION is a string describing the tool's purpose.
-BODY is the implementation of the tool."
-  (declare (indent 3))
-  (let ((symbol (intern (format "emacs-mcp--%s-tool" name)))
-        (properties (mapcar (lambda (arg) `(,arg . ((type . "string")))) args))
-        (required (mapcar 'symbol-name args)))
-    `(progn
-       (defun ,symbol ,args
-         ,description
-         (condition-case err
-             (emacs-mcp--send-response
-              id
-              `((content . [((type . "text")
-                             (text . ,(progn ,@body)))])
-                (isError . :json-false)))
-           (error
-            (emacs-mcp--send-response
-             id
-             `((content . [((type . "text")
-                            (text . ,(error-message-string err)))])
-               (isError . t))))))
-       (add-to-list 'emacs-mcp--tools
-                    '((name . ,(symbol-name name))
-                      (description . ,description)
-                      (inputSchema . ((type . "object")
-                                      (properties . ,properties)
-                                      (required . ,(vconcat required)))))))))
-
-;; Define tools
-(define-mcp-tool get-docstring (function_name)
-  "Get the docstring for an Emacs Lisp function."
-  (let* ((symbol (intern-soft function_name))
-         (docstring (and symbol (documentation symbol))))
-    (or docstring
-        (error "No docstring found for function: %s" function_name))))
-
-;; (define-mcp-tool get-info-node (manual node)
-;;   "Get the content of an Info documentation node."
-;;   (save-window-excursion
-;;     (let ((old-buffer (current-buffer))
-;;           content)
-;;       (info (concat "(" manual ")" node))
-;;       (setq content (buffer-substring-no-properties (point-min) (point-max)))
-;;       (switch-to-buffer old-buffer)
-;;       content)))
-
-;; (define-mcp-tool search-info (query manual)
-;;   "Search Info manuals for a term."
-;;   (save-window-excursion
-;;     (let ((old-buffer (current-buffer))
-;;           (results '()))
-;;       (info)
-;;       (if (and manual (not (string= manual "")))
-;;           (Info-goto-node (concat "(" manual ")"))
-;;         (Info-directory))
-;;       (Info-search query)
-;;       (push (format "Found in %s: %s\n\n%s"
-;;                     (file-name-nondirectory Info-current-file)
-;;                     Info-current-node
-;;                     (buffer-substring-no-properties
-;;                      (line-beginning-position)
-;;                      (min (+ (line-beginning-position) 500) (point-max))))
-;;             results)
-;;       ;; Try to find a few more matches
-;;       (dotimes (_ 4)
-;;         (condition-case nil
-;;             (progn
-;;               (Info-search query)
-;;               (push (format "Found in %s: %s\n\n%s"
-;;                             (file-name-nondirectory Info-current-file)
-;;                             Info-current-node
-;;                             (buffer-substring-no-properties
-;;                              (line-beginning-position)
-;;                              (min (+ (line-beginning-position) 500) (point-max))))
-;;                     results))
-;;           (error nil)))
-;;       (switch-to-buffer old-buffer)
-;;       (mapconcat #'identity (nreverse results) "\n\n---\n\n"))))
-
 ;;;###autoload
 (defun emacs-mcp-run-stdio ()
   "Run the MCP server using stdio.
@@ -226,6 +155,42 @@ This function is meant to be used in batch mode."
       (when (string= input "")
         (error "Empty input, exiting"))
       (emacs-mcp--process-input input))))
+
+(defmacro define-mcp-tool (name args description &rest body)
+  "Define an MCP tool with NAME, ARGS, DESCRIPTION and BODY.
+NAME is a symbol that will be used directly as the tool name.
+ARGS is a list of parameter names that will be extracted from the request.
+DESCRIPTION is a string describing the tool's purpose.
+BODY is the implementation of the tool."
+  (declare (indent 2))
+  (let ((symbol (intern (format "emacs-mcp--%s-tool" name)))
+        (properties (mapcar (lambda (arg) `(,arg . ((type . "string")))) args))
+        (required (mapcar 'symbol-name args)))
+    `(progn
+       (defun ,symbol ,args ,description ,@body)
+       (add-to-list 'emacs-mcp--tools
+                    '((name . ,(symbol-name name))
+                      (description . ,description)
+                      (inputSchema . ((type . "object")
+                                      (properties . ,properties)
+                                      (required . ,(vconcat required)))))))))
+
+;; Define tools
+(define-mcp-tool get-docstring (function-name)
+  "Get the docstring for an Emacs Lisp function."
+  (let* ((symbol (intern-soft function-name))
+         (docstring (and symbol (documentation symbol))))
+    (or docstring
+        (error "No docstring found for function: %s" function-name))))
+
+(define-mcp-tool describe-variable (variable-name)
+  "Describe an Emacs Lisp variable."
+  (save-window-excursion
+    (describe-variable (intern variable-name))
+    (with-current-buffer "*Help*"
+      (let ((docstring (buffer-string)))
+        (kill-buffer)
+        docstring))))
 
 (provide 'emacs-mcp)
 ;;; emacs-mcp.el ends here
