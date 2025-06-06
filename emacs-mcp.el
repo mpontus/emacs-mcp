@@ -177,20 +177,216 @@ BODY is the implementation of the tool."
 
 ;; Define tools
 (define-mcp-tool get-docstring (function-name)
-  "Get the docstring for an Emacs Lisp function."
+  "Get the docstring for an Emacs Lisp function.
+Provides the raw documentation string for any Emacs Lisp function.
+FUNCTION-NAME should be the name of the function as a string.
+Returns the full docstring or an error if the function doesn't exist."
   (let* ((symbol (intern-soft function-name))
          (docstring (and symbol (documentation symbol))))
     (or docstring
         (error "No docstring found for function: %s" function-name))))
 
 (define-mcp-tool describe-variable (variable-name)
-  "Describe an Emacs Lisp variable."
+  "Describe an Emacs Lisp variable in detail.
+Provides comprehensive information about a variable including:
+- Current value
+- Documentation string
+- Whether it is customizable
+- Where it was defined
+VARIABLE-NAME should be the name of the variable as a string."
   (save-window-excursion
     (describe-variable (intern variable-name))
     (with-current-buffer "*Help*"
       (let ((docstring (buffer-string)))
         (kill-buffer)
         docstring))))
+
+(define-mcp-tool describe-key (key-sequence)
+  "Display documentation of the function invoked by KEY-SEQUENCE.
+Provides information about what command a key sequence runs and its documentation.
+KEY-SEQUENCE should be in Emacs key notation as a string (e.g. \"C-x C-f\").
+Returns details about the key binding and the function it calls."
+  (save-window-excursion
+    (let ((key (kbd key-sequence)))
+      (describe-key key)
+      (with-current-buffer "*Help*"
+        (let ((result (buffer-string)))
+          (kill-buffer)
+          result)))))
+
+(define-mcp-tool describe-mode ()
+  "Display documentation of current major mode and minor modes.
+Provides comprehensive information about:
+- The current major mode and its purpose
+- All enabled minor modes
+- Key bindings specific to these modes
+This helps understand the current editing environment and available commands."
+  (save-window-excursion
+    (describe-mode)
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-function (function-name)
+  "Display the full documentation of FUNCTION.
+Provides detailed information about an Emacs Lisp function including:
+- Its argument list
+- Full documentation string
+- Where it was defined
+- Key bindings that call this function
+FUNCTION-NAME should be the name of the function as a string."
+  (save-window-excursion
+    (describe-function (intern function-name))
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-face (face-name)
+  "Display the properties of face FACE.
+Provides detailed information about a display face including:
+- Its appearance attributes (color, weight, slant, etc.)
+- Where it was defined
+- How it's currently displayed
+FACE-NAME should be the name of the face as a string.
+This is useful for understanding text styling in Emacs."
+  (save-window-excursion
+    (describe-face (intern face-name))
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-package (package-name)
+  "Display the full documentation of PACKAGE.
+Provides comprehensive information about an installed package including:
+- Version information
+- Summary and description
+- Dependencies
+- Features provided
+PACKAGE-NAME should be the name of the package as a string.
+This helps understand what functionality a package provides."
+  (save-window-excursion
+    (require 'package)
+    (describe-package (intern package-name))
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-bindings ()
+  "Display a buffer showing a list of all defined keys, and their definitions.
+Provides a comprehensive list of all currently active key bindings organized by prefix.
+This gives a complete overview of available commands and their key shortcuts.
+Useful for understanding what commands are available in the current context."
+  (save-window-excursion
+    (describe-bindings)
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-theme (theme-name)
+  "Display a description of the Custom theme THEME.
+Provides information about a specific Emacs theme including:
+- Its settings and customizations
+- Faces it defines or modifies
+- Where it was defined
+THEME-NAME should be the name of the theme as a string.
+This helps understand how a theme affects Emacs appearance."
+  (save-window-excursion
+    (require 'custom)
+    (describe-theme (intern theme-name))
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool describe-syntax ()
+  "Describe the syntax specifications in the current syntax table.
+Provides detailed information about how Emacs interprets different characters
+in the current buffer's major mode. This includes:
+- Which characters are considered word constituents
+- Which characters are considered punctuation
+- How comment and string delimiters are defined
+This is useful for understanding how Emacs parses text in different modes."
+  (save-window-excursion
+    (describe-syntax)
+    (with-current-buffer "*Help*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool apropos-command (pattern)
+  "Search for commands matching PATTERN.
+Finds and returns information about all Emacs commands whose names match PATTERN.
+PATTERN can be a regular expression or a simple string.
+Results include command names, key bindings, and brief descriptions.
+This is useful for discovering commands related to a specific topic or feature."
+  (require 'apropos)
+  (save-window-excursion
+    (apropos-command pattern)
+    (with-current-buffer "*Apropos*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool apropos-variable (pattern)
+  "Search for variables matching PATTERN.
+Finds and returns information about all Emacs variables whose names match PATTERN.
+PATTERN can be a regular expression or a simple string.
+Results include variable names, current values, and brief descriptions.
+This is useful for discovering configuration options related to a specific feature."
+  (require 'apropos)
+  (save-window-excursion
+    (apropos-variable pattern)
+    (with-current-buffer "*Apropos*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool apropos-value (pattern)
+  "Search for variables with values matching PATTERN.
+Finds and returns information about Emacs variables whose values match PATTERN.
+PATTERN can be a regular expression or a simple string.
+Results include variable names, matching values, and brief descriptions.
+This is useful for finding variables set to specific values or containing certain data."
+  (require 'apropos)
+  (save-window-excursion
+    (apropos-value pattern)
+    (with-current-buffer "*Apropos*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool apropos-documentation (pattern)
+  "Search for symbols with documentation matching PATTERN.
+Finds and returns information about Emacs symbols whose documentation contains PATTERN.
+PATTERN can be a regular expression or a simple string.
+Results include symbol names and the matching portions of their documentation.
+This is useful for finding features described with specific terms in their documentation."
+  (require 'apropos)
+  (save-window-excursion
+    (apropos-documentation pattern)
+    (with-current-buffer "*Apropos*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
+
+(define-mcp-tool apropos (pattern)
+  "Search for symbols whose names match PATTERN.
+Finds and returns information about all Emacs symbols whose names match PATTERN.
+PATTERN can be a regular expression or a simple string.
+Results include functions, variables, faces, and other symbols.
+This is the most general search tool and useful for broad exploration of Emacs features."
+  (require 'apropos)
+  (save-window-excursion
+    (apropos pattern)
+    (with-current-buffer "*Apropos*"
+      (let ((result (buffer-string)))
+        (kill-buffer)
+        result))))
 
 (provide 'emacs-mcp)
 ;;; emacs-mcp.el ends here
