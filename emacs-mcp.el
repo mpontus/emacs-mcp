@@ -156,6 +156,10 @@ This function is meant to be used in batch mode."
         (error "Empty input, exiting"))
       (emacs-mcp--process-input input))))
 
+(defun emacs-mcp--format-name (name)
+  "Convert NAME from Emacs kebab-case to MCP snake_case format."
+  (replace-regexp-in-string "-" "_" name))
+
 ;;;###autoload
 (defmacro define-mcp-tool (name args description &rest body)
   "Define an MCP tool with NAME, ARGS, DESCRIPTION and BODY.
@@ -164,13 +168,16 @@ ARGS is a list of parameter names that will be extracted from the request.
 DESCRIPTION is a string describing the tool's purpose.
 BODY is the implementation of the tool."
   (declare (indent 2))
-  (let ((symbol (intern (format "emacs-mcp--%s-tool" name)))
-        (properties (mapcar (lambda (arg) `(,arg . ((type . "string")))) args))
-        (required (mapcar 'symbol-name args)))
+  (let* ((formatted-name (emacs-mcp--format-name (symbol-name name)))
+         (symbol (intern (format "emacs-mcp--%s-tool" formatted-name)))
+         (properties (mapcar (lambda (arg) 
+                              `(,(intern (emacs-mcp--format-name (symbol-name arg))) . ((type . "string")))) 
+                            args))
+         (required (mapcar (lambda (arg) (emacs-mcp--format-name (symbol-name arg))) args)))
     `(progn
        (defun ,symbol ,args ,description ,@body)
        (add-to-list 'emacs-mcp--tools
-                    '((name . ,(symbol-name name))
+                    '((name . ,formatted-name)
                       (description . ,description)
                       (inputSchema . ((type . "object")
                                       ,@(when properties
