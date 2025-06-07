@@ -87,23 +87,23 @@
          (arguments (alist-get 'arguments params)))
     (dolist (tool emacs-mcp--tools)
       (when (string= (alist-get 'name tool) tool-name)
-        (let ((result (apply (intern (concat "emacs-mcp--" tool-name "-tool"))
-                             (mapcar (lambda (arg) (alist-get arg arguments))
-                                     (mapcar 'car
-                                             (alist-get 'properties
-                                                        (alist-get 'inputSchema tool)))))))
-          (condition-case err
+        (condition-case err
+            (let ((result (apply (intern (concat "emacs-mcp--" tool-name "-tool"))
+                                 (mapcar (lambda (arg) (alist-get arg arguments))
+                                         (mapcar 'car
+                                                 (alist-get 'properties
+                                                            (alist-get 'inputSchema tool)))))))
               (emacs-mcp--send-response
                id
                `((content . [((type . "text")
                               (text . ,result))])
-                 (isError . :json-false)))
-            (error
-             (emacs-mcp--send-response
-              id
-              `((content . [((type . "text")
-                             (text . ,(error-message-string err)))])
-                (isError . t))))))))))
+                 (isError . :json-false))))
+          (error
+           (emacs-mcp--send-response
+            id
+            `((content . [((type . "text")
+                           (text . ,(error-message-string err)))])
+              (isError . t)))))))))
 
 (defun emacs-mcp--handle-request (request)
   "Handle REQUEST."
