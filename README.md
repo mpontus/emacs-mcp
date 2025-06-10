@@ -30,6 +30,8 @@ You can create a file called `~/.config/doom/bin/emacs-mcp` with the following c
   (doom-initialize t)            ; bootstrap Doom as if this were an interactive session
   (doom-startup)                 ; load your modules and user config
   (emacs-mcp-run-stdio))         ; run the MCP server
+
+(run! "emacs-mcp")
 ```
 
 This will ensure that the emacs instance running MCP server will access the same environment and modules as your interactive Doom Emacs instance.
@@ -42,11 +44,7 @@ npx @modelcontextprotocol/inspector ~/.config/emacs/bin/doomscript ~/.config/doo
 
 ## Usage
 
-Following sections will describe specific configuration for different LLMs that support Model Context Protocol. The list is not exhaustive - if you want to enable support for a new LLM you can consult the official documentation and adapt the examples below. 
-
-### Amazon Q Developer CLI
-
-To configure MCP server in Amazon Q Developer CLI, you need to change the `~/.amazonq/mcp.json` file to include the following contents:
+Configure MCP server for your LLM client, by changing the `mcp.json` file as prescribed by your LLM client's documentation, such as [Claude Code](https://modelcontextprotocol.io/quickstart/user#2-add-the-filesystem-mcp-server) or [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html).
 
 ```json
 
@@ -66,26 +64,18 @@ To configure MCP server in Amazon Q Developer CLI, you need to change the `~/.am
 }
 ```
 
-Or if you are using Doom Emacs, you can use the following command:
+Or if you are using Doom Emacs, you can use the following configuration:
 
 ```json
 {
   "mcpServers": {
     "emacs": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "~/.config/emacs/bin/doomscript",
-        "~/.config/doom/bin/emacs-mcp"
-      ]
+      "command": "~/.config/emacs/bin/doomscript",
+      "args": ["~/.config/doom/bin/emacs-mcp"]
     }
   }
 }
 ```
-
-### Claude Code
-
-<I have no idea how to configure MCP servers in claude code, I'm lost>
 
 ## License
 
