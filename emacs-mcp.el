@@ -156,9 +156,10 @@ This function is meant to be used in batch mode."
         (error "Empty input, exiting"))
       (emacs-mcp--process-input input))))
 
-(defun emacs-mcp--format-name (name)
-  "Convert NAME from Emacs kebab-case to MCP snake_case format."
-  (replace-regexp-in-string "-" "_" name))
+(eval-and-compile
+  (defun emacs-mcp--format-name (name)
+    "Convert NAME from Emacs kebab-case to MCP snake_case format."
+    (replace-regexp-in-string "-" "_" name)))
 
 ;;;###autoload
 (defmacro define-mcp-tool (name args description &rest body)
